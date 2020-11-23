@@ -13,6 +13,7 @@
 #include "tft_lcd.h"
 
 // Include for BLE
+
 #include "bluetooth.h"
 
 // Define for RTOS's core selection
@@ -33,9 +34,11 @@ void task_display( void *pvParameters );
 /*
  *  Global variables for RH sensor SHT31D
  */
+#define GPIO_SENSOR_ERROR_LED          27
 Adafruit_SHT31 sht31 = Adafruit_SHT31();
 float temperatureValue;
 float RH_value;
+int8_t sht31_disconnected = 0; 
 
 /*
  *  Global variables for TFT LCD Display
@@ -68,6 +71,12 @@ bool BLE_connectionState = false;
 void setup() {
   Serial.begin(115200);
 
+  /*
+   * SHT31 Initialize
+   */
+  pinMode(GPIO_SENSOR_ERROR_LED, OUTPUT);
+  digitalWrite(GPIO_SENSOR_ERROR_LED, LOW);
+  
   /*
    * TFT LCD Initialize
    */
@@ -134,9 +143,14 @@ void task_readSensor(void *pvParameters)  // This is a task.
   for (;;) // A Task shall never return or exit.
   {
     if (! sht31.begin(0x44)) {   // Set to 0x45 for alternate i2c addr
+      sht31_disconnected = 1; // Set disconnect flag of sht31 sensor
+      // Turn on sensor problem LED
+      digitalWrite(GPIO_SENSOR_ERROR_LED, HIGH);
       Serial.println("Couldn't find SHT31");
     }
     else{
+      sht31_disconnected = 0;
+      digitalWrite(GPIO_SENSOR_ERROR_LED, LOW);
       temperatureValue = sht31.readTemperature();
       RH_value = sht31.readHumidity();
     }
@@ -221,7 +235,7 @@ void task_display(void *pvParameters)  // This is a task.
        tmp_string = "Connected!";
     }
     tft.print(tmp_string);
-    Serial.println(BLE_connectionState);
+    //Serial.println(BLE_connectionState);
 
     /*
      * Write tempurature & RH value to LCD display
@@ -287,8 +301,8 @@ void task_bluetooth(void *pvParameters)  // This is a task.
       // with the current time since boot.
       if(connected){
         BLE_connectionState = true;
-        //String newValue = String(temperatureValue, 2) + "," + String(RH_value, 2);
-        String newValue = String(RH_value, 2);
+        String newValue = String(temperatureValue, 2) + "," + String(RH_value, 2) + "," + String(sht31_disconnected);
+        //String newValue = String(RH_value, 2);
         Serial.println("Setting new characteristic value to \"" + newValue + "\"");
         
         // Set the characteristic's value to be the array of bytes that is actually a string.
