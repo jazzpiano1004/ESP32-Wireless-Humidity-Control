@@ -35,6 +35,7 @@ void task_heater_ctrl(void *pvParameters);
 #define HEATER_CTRL_STATE_LOW_RH      2
 float RH_value=50;
 float temperatureValue;
+int8_t sht31_disconnected = 0;
 int8_t heaterCtrlState = -1;
 
 /*
@@ -47,7 +48,7 @@ int8_t heaterCtrlState = -1;
 #define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
 #define BLE_CONNECTTIMEOUT      15
 #define LED_IO_BLE_CONNECTED    25
-String   BLE_message;
+String   BLE_message = "";
 uint32_t timeoutCnt = BLE_CONNECTTIMEOUT;
 bool     timeoutFlag = true;
 
@@ -60,8 +61,7 @@ class MyCallbacks: public BLECharacteristicCallbacks {
 
       //BLE_message = value;
       BLE_message = value.c_str();
-      RH_value = BLE_message.toFloat();
-      Serial.println(BLE_message);
+      //Serial.println(BLE_message);
     }
 };
 
@@ -122,11 +122,18 @@ void setup() {
                     NULL,             /* Parameter passed as input of the task */
                     1,                /* Priority of the task. */
                     NULL);            /* Task handle. */
+  xTaskCreate(
+                    task_decodeBluetoothMessage,          /* Task function. */
+                    "BLE timeout checking",        /* String with name of task. */
+                    1024,             /* Stack size in bytes. */
+                    NULL,             /* Parameter passed as input of the task */
+                    1,                /* Priority of the task. */
+                    NULL);  
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
-  delay(2000);
+  delay(1000);
 }
 
 
@@ -147,9 +154,72 @@ void task_displayStatus(void *pvParameters)  // This is a task.
     else{
        digitalWrite(LED_IO_BLE_CONNECTED, LOW);
     }
+    Serial.print("temp=");
+    Serial.print(temperatureValue);
+    Serial.print("\tRH=");
+    Serial.print(RH_value);
+    Serial.print("\terror=");
+    Serial.println(sht31_disconnected);
     
     // task sleep
     vTaskDelay(1500);
+  }
+}
+
+
+
+void task_decodeBluetoothMessage(void *pvParameters)
+{
+  (void) pvParameters;
+
+  /* for message CSV format decoding */
+  String tmp_msg;
+  char field1[8] = "";
+  char field2[8] = "";
+  char field3[8] = "";
+  int8_t msg_len;
+  int8_t pos;
+  int8_t previous_comma_pos;
+  int8_t field_num;
+  int8_t i;
+  
+  for (;;)
+  { 
+    /*
+     * BLE message decoding. Message is CSV format -> temperature, RH_value, sht31_disconnected
+     *                                                    field1,   field2,  field3
+     */
+    tmp_msg = BLE_message;   // load current BLE message to temporary variable
+    msg_len = tmp_msg.length();
+    if(msg_len > 0){
+      pos=0;
+      field_num = 1;
+      previous_comma_pos = -1;
+      while(pos < msg_len){
+        if(tmp_msg[pos] == ','){
+          for(i=0; i<pos-previous_comma_pos-1; i++){
+            if(field_num == 1)       field1[i] = tmp_msg[previous_comma_pos + 1 + i];
+            else if(field_num == 2)  field2[i] = tmp_msg[previous_comma_pos + 1 + i];
+          }
+          i=0;
+          previous_comma_pos = pos;
+          field_num++;
+        }
+        else if(field_num == 3){
+          field3[i] = tmp_msg[pos];
+          i++;
+        }
+        pos++;
+      }
+
+      // Update temperature, RH value, error status with decoded message
+      temperatureValue = atof(field1);
+      RH_value = atof(field2);
+      sht31_disconnected = atoi(field3);
+    }
+    
+    // task sleep
+    vTaskDelay(250);
   }
 }
 
