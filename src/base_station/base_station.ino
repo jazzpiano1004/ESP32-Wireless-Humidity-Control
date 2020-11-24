@@ -29,14 +29,15 @@ void task_heater_ctrl(void *pvParameters);
 #define CONTROL_IO_FAN      27
 #define LED_IO_HEATER       33
 #define LED_IO_FAN          32
-#define RH_THRESHOLD_HIGH             54
-#define RH_THRESHOLD_LOW              48
+#define RH_THRESHOLD_HIGH             (float)55.10
+#define RH_THRESHOLD_LOW              (float)54.90
 #define HEATER_CTRL_STATE_HIGH_RH     1
 #define HEATER_CTRL_STATE_LOW_RH      2
+#define HEATER_CTRL_STATE_IDLE        0
 float RH_value=50;
 float temperatureValue;
 int8_t sht31_disconnected = 0;
-int8_t heaterCtrlState = -1;
+int8_t heaterCtrlState = HEATER_CTRL_STATE_IDLE;
 
 /*
  * BLE Define, Class & Global variable
@@ -46,7 +47,7 @@ int8_t heaterCtrlState = -1;
 //#define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
 #define SERVICE_UUID        "2c0c9b4a-2a57-11eb-adc1-0242ac120002"
 #define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
-#define BLE_CONNECTTIMEOUT      15
+#define BLE_CONNECTTIMEOUT      10
 #define LED_IO_BLE_CONNECTED    25
 String   BLE_message = "";
 uint32_t timeoutCnt = BLE_CONNECTTIMEOUT;
@@ -109,7 +110,7 @@ void setup() {
                     2,                /* Priority of the task. */
                     NULL);            /* Task handle. */
   xTaskCreate(
-                    task_heater_ctrl,          /* Task function. */
+                    task_heaterControl,          /* Task function. */
                     "Heater and Fan Control",        /* String with name of task. */
                     2048,             /* Stack size in bytes. */
                     NULL,             /* Parameter passed as input of the task */
@@ -244,38 +245,65 @@ void task_connectTimeout(void *pvParameters)  // This is a task.
 
 
 
-void task_heater_ctrl(void *pvParameters)  // This is a task.
+void task_heaterControl(void *pvParameters)  // This is a task.
 {
   (void) pvParameters;
 
   for (;;) // A Task shall never return or exit.
-  {
-    if(RH_value > RH_THRESHOLD_HIGH){
-       if(heaterCtrlState != HEATER_CTRL_STATE_HIGH_RH){
+  { 
+    if(timeoutFlag || (sht31_disconnected != 0)){
+      /*
+       * When there is no connection OR get error from sensor node
+       * -> Turn off heater and fan
+       */
+       if(heaterCtrlState != HEATER_CTRL_STATE_IDLE){
+          Serial.println("Turn off heater, go to IDLE");
+          digitalWrite(CONTROL_IO_HEATER, LOW);
+          digitalWrite(CONTROL_IO_FAN, LOW);
+          vTaskDelay(60000);
+          digitalWrite(LED_IO_HEATER, LOW);  
+          digitalWrite(LED_IO_FAN, LOW);
+          heaterCtrlState = HEATER_CTRL_STATE_IDLE;
+       }
+    }
+    else{
+      /*
+       * When there is connection and no error from sensor node
+       * -> Activate heater control
+       */
+      if(RH_value > RH_THRESHOLD_HIGH){
+        if(heaterCtrlState != HEATER_CTRL_STATE_HIGH_RH){
+           /*
+            * RH value rise from LOW_RH threshold to HIGH_RH threshold
+            */
+           Serial.println("Turn on heater");
            // turn on fan and heater
            digitalWrite(CONTROL_IO_HEATER, HIGH);
            digitalWrite(LED_IO_HEATER, HIGH);
            vTaskDelay(10000);
            digitalWrite(CONTROL_IO_FAN, HIGH);   
            digitalWrite(LED_IO_FAN, HIGH);
-           
            heaterCtrlState = HEATER_CTRL_STATE_HIGH_RH;
-       }
-    }
-    else if(RH_value < RH_THRESHOLD_LOW){
-       if(heaterCtrlState != HEATER_CTRL_STATE_LOW_RH){
+        }
+      }
+      else if(RH_value < RH_THRESHOLD_LOW){
+        if(heaterCtrlState != HEATER_CTRL_STATE_LOW_RH){
+           /*
+            * RH value drop from HIGH_RH threshold to LOW_RH threshold
+            */
            // turn off fan and heater
+           Serial.println("Turn off heater, go to IDLE");
            digitalWrite(CONTROL_IO_HEATER, LOW);
            digitalWrite(LED_IO_HEATER, LOW);   
            vTaskDelay(60000);   
            digitalWrite(CONTROL_IO_FAN, LOW);  
            digitalWrite(LED_IO_FAN, LOW);
-
            heaterCtrlState = HEATER_CTRL_STATE_LOW_RH;
-       }
+        }
+      }
     }  
     
     // task sleep
-    vTaskDelay(100);
+    vTaskDelay(500);
   }
 }
