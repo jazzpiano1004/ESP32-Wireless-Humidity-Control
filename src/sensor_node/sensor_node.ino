@@ -11,6 +11,7 @@
 
 // Include for TFT LCD Display
 #include "tft_lcd.h"
+#include "Free_Fonts.h"
 
 // Include for BLE
 
@@ -57,8 +58,15 @@ int8_t sht31_disconnected = 0;
 #define UI_BACKGROUND_PAGE_3           3
 #define UI_BACKGROUND_PAGE_4           4
 #define UI_BACKGROUND_PAGE_5           5
-extern TFT_eSPI tft;
+//font color piker URL : http://www.barth-dev.de/online/rgb565-color-picker/
+#define BG_COLOR_CODE_PAGE_1           0x055F
+#define BG_COLOR_CODE_PAGE_2           0x0759
+#define BG_COLOR_CODE_PAGE_3           0xF640 
+#define BG_COLOR_CODE_PAGE_4           0xFBC0
+#define BG_COLOR_CODE_PAGE_5           TFT_RED
 
+extern TFT_eSPI tft;
+uint16_t textBgColorCode = TFT_BLACK;
 
 
 /*
@@ -187,7 +195,6 @@ void task_display(void *pvParameters)  // This is a task.
          if(backgroundPage_new != backgroundPage_old){
             drawSdJpeg(UI_BACKGROUND_PAGE_FILENAME_5, 0, 0);     // This draws a jpeg pulled off the SD Card
             backgroundPage_old = backgroundPage_new;
-         }
       }
       else if(RH_value > RH_THRESHOLD_VALUE_3){
          backgroundPage_new = UI_BACKGROUND_PAGE_4;
@@ -210,7 +217,7 @@ void task_display(void *pvParameters)  // This is a task.
          if(backgroundPage_new != backgroundPage_old){
             drawSdJpeg(UI_BACKGROUND_PAGE_FILENAME_2, 0, 0);     // This draws a jpeg pulled off the SD Card
             backgroundPage_old = backgroundPage_new;
-         }
+         }  
       }
       else{
          backgroundPage_new = UI_BACKGROUND_PAGE_1;
@@ -225,49 +232,36 @@ void task_display(void *pvParameters)  // This is a task.
     /*
      * Write BLE connectivity to LCD display
      */
-    tft.setCursor(130, 20, 2);
-    tft.setTextColor(TFT_WHITE, TFT_BLACK);
-    tft.setTextSize(2);
+    if(backgroundPage_new == UI_BACKGROUND_PAGE_1)       textBgColorCode = BG_COLOR_CODE_PAGE_1;
+    else if(backgroundPage_new == UI_BACKGROUND_PAGE_2)  textBgColorCode = BG_COLOR_CODE_PAGE_2;
+    else if(backgroundPage_new == UI_BACKGROUND_PAGE_3)  textBgColorCode = BG_COLOR_CODE_PAGE_3;
+    else if(backgroundPage_new == UI_BACKGROUND_PAGE_4)  textBgColorCode = BG_COLOR_CODE_PAGE_4;
+    else if(backgroundPage_new == UI_BACKGROUND_PAGE_5)  textBgColorCode = BG_COLOR_CODE_PAGE_5;
+    tft.setTextColor(TFT_WHITE, textBgColorCode);   
+    tft.setFreeFont(FF17);
+    tft.setTextSize(1);
     if(BLE_connectionState == 0){
        tmp_string = "No Connect...";
     }
     else{
        tmp_string = "Connected!";
     }
-    tft.print(tmp_string);
+    tft.fillRect(180, 5, 120, 20, textBgColorCode);  
+    tft.drawString(tmp_string, 180, 5, GFXFF);
     //Serial.println(BLE_connectionState);
 
     /*
      * Write tempurature & RH value to LCD display
      */
-    tft.fillRect(170, 140, 140, 60, TFT_BLACK);    
-    if(! isnan(temperatureValue)){  // check if 'is not a number'
-      /*
-      Serial.print("Temp *C = "); 
-      Serial.print(temperatureValue); 
-      Serial.print("\t\t");
-      */
-      tft.setCursor(170, 140, 2);
-      tft.setTextColor(TFT_WHITE, TFT_BLACK);
-      tft.setTextSize(2);
-      tmp_string = "Temp=" + String(temperatureValue, 1);
-      tft.print(tmp_string);
-    }
-    else{ 
-      Serial.println("Failed to read temperature");
-    }
-
     if(! isnan(RH_value)){  // check if 'is not a number'
-      /*
-      Serial.print("RH = "); 
-      Serial.print(RH_value); 
-      Serial.print("\r\n");
-      */
-      tft.setCursor(170, 170, 2);
-      tft.setTextColor(TFT_WHITE, TFT_BLACK);
+      tft.setFreeFont(FF44);
       tft.setTextSize(2);
-      tmp_string = "RH=" + String(RH_value, 2) + "%";
-      tft.print(tmp_string);
+      tmp_string = String(RH_value, 1);
+      tft.fillRect(135, 160, 165, 80, textBgColorCode);
+      tft.drawString(tmp_string, 135, 160, GFXFF);
+      tft.setFreeFont(FF18);
+      tft.setTextSize(1);
+      tft.drawString("%", 300, 210, GFXFF);
     }
     else{ 
       Serial.println("Failed to read temperature");
