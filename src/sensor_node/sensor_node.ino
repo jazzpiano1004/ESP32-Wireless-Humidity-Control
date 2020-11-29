@@ -232,6 +232,7 @@ void task_display(void *pvParameters)  // This is a task.
     /*
      * Write BLE connectivity to LCD display
      */
+<<<<<<< HEAD
     if(backgroundPage_new == UI_BACKGROUND_PAGE_1)       textBgColorCode = BG_COLOR_CODE_PAGE_1;
     else if(backgroundPage_new == UI_BACKGROUND_PAGE_2)  textBgColorCode = BG_COLOR_CODE_PAGE_2;
     else if(backgroundPage_new == UI_BACKGROUND_PAGE_3)  textBgColorCode = BG_COLOR_CODE_PAGE_3;
@@ -240,6 +241,7 @@ void task_display(void *pvParameters)  // This is a task.
     tft.setTextColor(TFT_WHITE, textBgColorCode);   
     tft.setFreeFont(FF17);
     tft.setTextSize(1);
+
     if(BLE_connectionState == 0){
        tmp_string = "No Connect...";
     }
