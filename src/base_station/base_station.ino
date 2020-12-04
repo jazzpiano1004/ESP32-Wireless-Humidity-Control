@@ -259,9 +259,9 @@ void task_heaterControl(void *pvParameters)  // This is a task.
        if(heaterCtrlState != HEATER_CTRL_STATE_IDLE){
           Serial.println("Turn off heater, go to IDLE");
           digitalWrite(CONTROL_IO_HEATER, LOW);
-          digitalWrite(CONTROL_IO_FAN, LOW);
+          digitalWrite(LED_IO_HEATER, LOW);
           vTaskDelay(60000);
-          digitalWrite(LED_IO_HEATER, LOW);  
+          digitalWrite(CONTROL_IO_FAN, LOW);  
           digitalWrite(LED_IO_FAN, LOW);
           heaterCtrlState = HEATER_CTRL_STATE_IDLE;
        }
