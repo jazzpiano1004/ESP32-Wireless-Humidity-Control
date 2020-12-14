@@ -195,6 +195,7 @@ void task_display(void *pvParameters)  // This is a task.
          if(backgroundPage_new != backgroundPage_old){
             drawSdJpeg(UI_BACKGROUND_PAGE_FILENAME_5, 0, 0);     // This draws a jpeg pulled off the SD Card
             backgroundPage_old = backgroundPage_new;
+         }
       }
       else if(RH_value > RH_THRESHOLD_VALUE_3){
          backgroundPage_new = UI_BACKGROUND_PAGE_4;
@@ -232,7 +233,6 @@ void task_display(void *pvParameters)  // This is a task.
     /*
      * Write BLE connectivity to LCD display
      */
-<<<<<<< HEAD
     if(backgroundPage_new == UI_BACKGROUND_PAGE_1)       textBgColorCode = BG_COLOR_CODE_PAGE_1;
     else if(backgroundPage_new == UI_BACKGROUND_PAGE_2)  textBgColorCode = BG_COLOR_CODE_PAGE_2;
     else if(backgroundPage_new == UI_BACKGROUND_PAGE_3)  textBgColorCode = BG_COLOR_CODE_PAGE_3;
