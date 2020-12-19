@@ -248,22 +248,22 @@ void task_display(void *pvParameters)  // This is a task.
     else{
        tmp_string = "Connected!";
     }
-    tft.fillRect(180, 5, 120, 20, textBgColorCode);  
-    tft.drawString(tmp_string, 180, 5, GFXFF);
+    //tft.fillRect(180, 5, 120, 20, textBgColorCode);  
+    //tft.drawString(tmp_string, 180, 5, GFXFF);
     //Serial.println(BLE_connectionState);
 
     /*
      * Write tempurature & RH value to LCD display
      */
     if(! isnan(RH_value)){  // check if 'is not a number'
-      tft.setFreeFont(FF44);
+      tft.setFreeFont(FF24);
       tft.setTextSize(2);
-      tmp_string = String(RH_value, 1);
-      tft.fillRect(135, 160, 165, 80, textBgColorCode);
-      tft.drawString(tmp_string, 135, 160, GFXFF);
-      tft.setFreeFont(FF18);
-      tft.setTextSize(1);
-      tft.drawString("%", 300, 210, GFXFF);
+      tmp_string = String(RH_value, 0);
+      tft.fillRect(170, 160, 140, 80, textBgColorCode);
+      tft.drawString(tmp_string, 170, 160, GFXFF);
+      tft.setFreeFont(FF21);
+      tft.setTextSize(2);
+      tft.drawString("%", 275, 210, GFXFF);
     }
     else{ 
       Serial.println("Failed to read temperature");
