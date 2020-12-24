@@ -39,6 +39,7 @@ void task_display( void *pvParameters );
 Adafruit_SHT31 sht31 = Adafruit_SHT31();
 float temperatureValue;
 float RH_value;
+int16_t RH_value_rounded[2] = {0, 0};
 int8_t sht31_disconnected = 0; 
 
 /*
@@ -64,11 +65,18 @@ int8_t sht31_disconnected = 0;
 #define BG_COLOR_CODE_PAGE_3           0xF640 
 #define BG_COLOR_CODE_PAGE_4           0xFBC0
 #define BG_COLOR_CODE_PAGE_5           TFT_RED
-
+#define TEMPERATURE_BOX_START_X      170
+#define TEMPERATURE_BOX_START_Y      160
+#define TEMPERATURE_BOX_W            140
+#define TEMPERATURE_BOX_H            80
 extern TFT_eSPI tft;
 TFT_eSprite sprite = TFT_eSprite(&tft);  // Create Sprite object "img" with pointer to "tft" object
-                                      // the pointer is used by pushSprite() to push it onto the TFT
+                                         // the pointer is used by pushSprite() to push it onto the TFT
 uint16_t textBgColorCode = TFT_BLACK;
+uint16_t textColorCode = TFT_WHITE;
+uint16_t buff_textBoxBg[TEMPERATURE_BOX_W * TEMPERATURE_BOX_H];
+
+
 
 
 /*
@@ -197,6 +205,7 @@ void task_display(void *pvParameters)  // This is a task.
          if(backgroundPage_new != backgroundPage_old){
             drawSdJpeg(UI_BACKGROUND_PAGE_FILENAME_5, 0, 0);     // This draws a jpeg pulled off the SD Card
             backgroundPage_old = backgroundPage_new;
+            tft.readRect(TEMPERATURE_BOX_START_X, TEMPERATURE_BOX_START_Y, TEMPERATURE_BOX_W, TEMPERATURE_BOX_H, buff_textBoxBg);
          }
       }
       else if(RH_value > RH_THRESHOLD_VALUE_3){
@@ -205,6 +214,7 @@ void task_display(void *pvParameters)  // This is a task.
          if(backgroundPage_new != backgroundPage_old){
             drawSdJpeg(UI_BACKGROUND_PAGE_FILENAME_4, 0, 0);     // This draws a jpeg pulled off the SD Card
             backgroundPage_old = backgroundPage_new;
+            tft.readRect(TEMPERATURE_BOX_START_X, TEMPERATURE_BOX_START_Y, TEMPERATURE_BOX_W, TEMPERATURE_BOX_H, buff_textBoxBg);
          }
       }
       else if(RH_value > RH_THRESHOLD_VALUE_2){
@@ -212,6 +222,7 @@ void task_display(void *pvParameters)  // This is a task.
          if(backgroundPage_new != backgroundPage_old){
             drawSdJpeg(UI_BACKGROUND_PAGE_FILENAME_3, 0, 0);     // This draws a jpeg pulled off the SD Card
             backgroundPage_old = backgroundPage_new;
+            tft.readRect(TEMPERATURE_BOX_START_X, TEMPERATURE_BOX_START_Y, TEMPERATURE_BOX_W, TEMPERATURE_BOX_H, buff_textBoxBg);
          }
       }
       else if(RH_value > RH_THRESHOLD_VALUE_1){
@@ -220,6 +231,7 @@ void task_display(void *pvParameters)  // This is a task.
          if(backgroundPage_new != backgroundPage_old){
             drawSdJpeg(UI_BACKGROUND_PAGE_FILENAME_2, 0, 0);     // This draws a jpeg pulled off the SD Card
             backgroundPage_old = backgroundPage_new;
+            tft.readRect(TEMPERATURE_BOX_START_X, TEMPERATURE_BOX_START_Y, TEMPERATURE_BOX_W, TEMPERATURE_BOX_H, buff_textBoxBg);
          }  
       }
       else{
@@ -228,6 +240,7 @@ void task_display(void *pvParameters)  // This is a task.
          if(backgroundPage_new != backgroundPage_old){
             drawSdJpeg(UI_BACKGROUND_PAGE_FILENAME_1, 0, 0);     // This draws a jpeg pulled off the SD Card
             backgroundPage_old = backgroundPage_new;
+            tft.readRect(TEMPERATURE_BOX_START_X, TEMPERATURE_BOX_START_Y, TEMPERATURE_BOX_W, TEMPERATURE_BOX_H, buff_textBoxBg);
          }
       }
     }
@@ -257,32 +270,46 @@ void task_display(void *pvParameters)  // This is a task.
      * Write tempurature & RH value to LCD display
      */
     if(! isnan(RH_value)){  // check if 'is not a number'
-      //create sprite with box size of 140 x 80 for text area
-      //8-bit color-level
-      sprite.setColorDepth(8);
-      sprite.createSprite(140, 80);
 
-      // Fill Sprite with a "transparent" colour
-      // TFT_TRANSPARENT is already defined for convenience
-      // We could also fill with any colour as "transparent" and later specify that
-      // same colour when we push the Sprite onto the screen.
-      sprite.fillSprite(TFT_BLACK);
-
-      sprite.setTextColor(TFT_WHITE, TFT_BLACK);  // White text, no background colour 
-      sprite.setFreeFont(FF24);
-      sprite.setTextSize(2);
-      tmp_string = String(RH_value, 0);
-      sprite.drawString(tmp_string, 0, 0, GFXFF);
-      sprite.setFreeFont(FF21);
-      sprite.setTextSize(2);
-      sprite.drawString("%", 103, 50, GFXFF);
-
-      // Push sprite to TFT screen CGRAM at coordinate x,y (top left corner)
-      // Specify what colour is to be treated as transparent.
-      sprite.pushSprite(170, 160, TFT_BLACK);
-
-      // Delete it to free memory
-      sprite.deleteSprite();
+      // Convert to integer for temperature displaying
+      RH_value_rounded[0] = (int) RH_value;
+      
+      if(RH_value_rounded[0] != RH_value_rounded[1]){
+        Serial.print(RH_value_rounded[0]);
+        Serial.print(",");
+        Serial.println(RH_value_rounded[1]);
+        // refresh background at textbox area only
+        tft.pushRect(TEMPERATURE_BOX_START_X, TEMPERATURE_BOX_START_Y, TEMPERATURE_BOX_W, TEMPERATURE_BOX_H, buff_textBoxBg);
+        
+        //create sprite with box size of 140 x 80 for text area
+        //8-bit color-level
+        sprite.setColorDepth(8);
+        sprite.createSprite(TEMPERATURE_BOX_W, TEMPERATURE_BOX_H);
+  
+        // Fill Sprite with a "transparent" colour
+        // TFT_TRANSPARENT is already defined for convenience
+        // We could also fill with any colour as "transparent" and later specify that
+        // same colour when we push the Sprite onto the screen.
+        sprite.fillSprite(TFT_BLACK);
+  
+        sprite.setTextColor(textColorCode, TFT_BLACK);  // White text, no background colour 
+        sprite.setFreeFont(FF24);
+        sprite.setTextSize(2);
+        tmp_string = String(RH_value_rounded[0]);
+        sprite.drawString(tmp_string, 0, 0, GFXFF);
+        sprite.setFreeFont(FF21);
+        sprite.drawString("%", 110, 50, GFXFF);
+  
+        // Push sprite to TFT screen CGRAM at coordinate x,y (top left corner)
+        // Specify what colour is to be treated as transparent.
+        sprite.pushSprite(TEMPERATURE_BOX_START_X, TEMPERATURE_BOX_START_Y, TFT_BLACK);
+  
+        // Delete it to free memory
+        sprite.deleteSprite();  
+      }
+      
+      // Update rounded RH_value
+      RH_value_rounded[1] = RH_value_rounded[0];
     }
     else{ 
       Serial.println("Failed to read temperature");
