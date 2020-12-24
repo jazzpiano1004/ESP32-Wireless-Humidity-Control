@@ -66,6 +66,8 @@ int8_t sht31_disconnected = 0;
 #define BG_COLOR_CODE_PAGE_5           TFT_RED
 
 extern TFT_eSPI tft;
+TFT_eSprite sprite = TFT_eSprite(&tft);  // Create Sprite object "img" with pointer to "tft" object
+                                      // the pointer is used by pushSprite() to push it onto the TFT
 uint16_t textBgColorCode = TFT_BLACK;
 
 
@@ -233,14 +235,13 @@ void task_display(void *pvParameters)  // This is a task.
     /*
      * Write BLE connectivity to LCD display
      */
+    /*
     if(backgroundPage_new == UI_BACKGROUND_PAGE_1)       textBgColorCode = BG_COLOR_CODE_PAGE_1;
     else if(backgroundPage_new == UI_BACKGROUND_PAGE_2)  textBgColorCode = BG_COLOR_CODE_PAGE_2;
     else if(backgroundPage_new == UI_BACKGROUND_PAGE_3)  textBgColorCode = BG_COLOR_CODE_PAGE_3;
     else if(backgroundPage_new == UI_BACKGROUND_PAGE_4)  textBgColorCode = BG_COLOR_CODE_PAGE_4;
     else if(backgroundPage_new == UI_BACKGROUND_PAGE_5)  textBgColorCode = BG_COLOR_CODE_PAGE_5;
-    tft.setTextColor(TFT_WHITE, textBgColorCode);   
-    tft.setFreeFont(FF17);
-    tft.setTextSize(1);
+    */
 
     if(BLE_connectionState == 0){
        tmp_string = "No Connect...";
@@ -256,14 +257,32 @@ void task_display(void *pvParameters)  // This is a task.
      * Write tempurature & RH value to LCD display
      */
     if(! isnan(RH_value)){  // check if 'is not a number'
-      tft.setFreeFont(FF24);
-      tft.setTextSize(2);
+      //create sprite with box size of 140 x 80 for text area
+      //8-bit color-level
+      sprite.setColorDepth(8);
+      sprite.createSprite(140, 80);
+
+      // Fill Sprite with a "transparent" colour
+      // TFT_TRANSPARENT is already defined for convenience
+      // We could also fill with any colour as "transparent" and later specify that
+      // same colour when we push the Sprite onto the screen.
+      sprite.fillSprite(TFT_BLACK);
+
+      sprite.setTextColor(TFT_WHITE, TFT_BLACK);  // White text, no background colour 
+      sprite.setFreeFont(FF24);
+      sprite.setTextSize(2);
       tmp_string = String(RH_value, 0);
-      tft.fillRect(170, 160, 140, 80, textBgColorCode);
-      tft.drawString(tmp_string, 170, 160, GFXFF);
-      tft.setFreeFont(FF21);
-      tft.setTextSize(2);
-      tft.drawString("%", 275, 210, GFXFF);
+      sprite.drawString(tmp_string, 0, 0, GFXFF);
+      sprite.setFreeFont(FF21);
+      sprite.setTextSize(2);
+      sprite.drawString("%", 103, 50, GFXFF);
+
+      // Push sprite to TFT screen CGRAM at coordinate x,y (top left corner)
+      // Specify what colour is to be treated as transparent.
+      sprite.pushSprite(170, 160, TFT_BLACK);
+
+      // Delete it to free memory
+      sprite.deleteSprite();
     }
     else{ 
       Serial.println("Failed to read temperature");
