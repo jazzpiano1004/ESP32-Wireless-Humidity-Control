@@ -39,8 +39,8 @@ void task_display( void *pvParameters );
 Adafruit_SHT31 sht31 = Adafruit_SHT31();
 float temperatureValue;
 float RH_value;
-int16_t RH_value_rounded[2] = {0, 0};
-int8_t sht31_disconnected = 0; 
+int8_t sht31_disconnected = 0;
+uint8_t firstReadFlagCompleted = 0;
 
 /*
  *  Global variables for TFT LCD Display
@@ -66,8 +66,8 @@ int8_t sht31_disconnected = 0;
 #define BG_COLOR_CODE_PAGE_4           0xFBC0
 #define BG_COLOR_CODE_PAGE_5           TFT_RED
 #define TEMPERATURE_BOX_START_X      170
-#define TEMPERATURE_BOX_START_Y      160
-#define TEMPERATURE_BOX_W            140
+#define TEMPERATURE_BOX_START_Y      150
+#define TEMPERATURE_BOX_W            150
 #define TEMPERATURE_BOX_H            80
 extern TFT_eSPI tft;
 TFT_eSprite sprite = TFT_eSprite(&tft);  // Create Sprite object "img" with pointer to "tft" object
@@ -171,6 +171,7 @@ void task_readSensor(void *pvParameters)  // This is a task.
       digitalWrite(GPIO_SENSOR_ERROR_LED, LOW);
       temperatureValue = sht31.readTemperature();
       RH_value = sht31.readHumidity();
+      if(firstReadFlagCompleted == 0) firstReadFlagCompleted = 1;
     }
 
     // task sleep
@@ -185,10 +186,12 @@ void task_display(void *pvParameters)  // This is a task.
   int8_t backgroundPage_old = -1;
   int8_t backgroundPage_new;
   String tmp_string;
-
+  int16_t RH_value_rounded[2] = {0, 0};
+  
+  // SD card open
   File file;
   File root = SD.open("/");
-  file = root.openNextFile();  // Opens next file in root
+  file = root.openNextFile();  // Opens next file in roo
   
   for (;;) // A Task shall never return or exit.
   {
@@ -199,49 +202,56 @@ void task_display(void *pvParameters)  // This is a task.
       Serial.println("Card Mount Failed");
     }
     else{
-      if(RH_value > RH_THRESHOLD_VALUE_4){
-         backgroundPage_new = UI_BACKGROUND_PAGE_5;
-         // Check if page will use the same background as the previous one
-         if(backgroundPage_new != backgroundPage_old){
-            drawSdJpeg(UI_BACKGROUND_PAGE_FILENAME_5, 0, 0);     // This draws a jpeg pulled off the SD Card
-            backgroundPage_old = backgroundPage_new;
-            tft.readRect(TEMPERATURE_BOX_START_X, TEMPERATURE_BOX_START_Y, TEMPERATURE_BOX_W, TEMPERATURE_BOX_H, buff_textBoxBg);
-         }
-      }
-      else if(RH_value > RH_THRESHOLD_VALUE_3){
-         backgroundPage_new = UI_BACKGROUND_PAGE_4;
-         // Check if page will use the same background as the previous one
-         if(backgroundPage_new != backgroundPage_old){
-            drawSdJpeg(UI_BACKGROUND_PAGE_FILENAME_4, 0, 0);     // This draws a jpeg pulled off the SD Card
-            backgroundPage_old = backgroundPage_new;
-            tft.readRect(TEMPERATURE_BOX_START_X, TEMPERATURE_BOX_START_Y, TEMPERATURE_BOX_W, TEMPERATURE_BOX_H, buff_textBoxBg);
-         }
-      }
-      else if(RH_value > RH_THRESHOLD_VALUE_2){
-         backgroundPage_new = UI_BACKGROUND_PAGE_3;
-         if(backgroundPage_new != backgroundPage_old){
-            drawSdJpeg(UI_BACKGROUND_PAGE_FILENAME_3, 0, 0);     // This draws a jpeg pulled off the SD Card
-            backgroundPage_old = backgroundPage_new;
-            tft.readRect(TEMPERATURE_BOX_START_X, TEMPERATURE_BOX_START_Y, TEMPERATURE_BOX_W, TEMPERATURE_BOX_H, buff_textBoxBg);
-         }
-      }
-      else if(RH_value > RH_THRESHOLD_VALUE_1){
-         backgroundPage_new = UI_BACKGROUND_PAGE_2;
-         // Check if page will use the same background as the previous one
-         if(backgroundPage_new != backgroundPage_old){
-            drawSdJpeg(UI_BACKGROUND_PAGE_FILENAME_2, 0, 0);     // This draws a jpeg pulled off the SD Card
-            backgroundPage_old = backgroundPage_new;
-            tft.readRect(TEMPERATURE_BOX_START_X, TEMPERATURE_BOX_START_Y, TEMPERATURE_BOX_W, TEMPERATURE_BOX_H, buff_textBoxBg);
-         }  
-      }
-      else{
-         backgroundPage_new = UI_BACKGROUND_PAGE_1;
-         // Check if page will use the same background as the previous one
-         if(backgroundPage_new != backgroundPage_old){
-            drawSdJpeg(UI_BACKGROUND_PAGE_FILENAME_1, 0, 0);     // This draws a jpeg pulled off the SD Card
-            backgroundPage_old = backgroundPage_new;
-            tft.readRect(TEMPERATURE_BOX_START_X, TEMPERATURE_BOX_START_Y, TEMPERATURE_BOX_W, TEMPERATURE_BOX_H, buff_textBoxBg);
-         }
+      if(firstReadFlagCompleted != 0){
+        if(RH_value > RH_THRESHOLD_VALUE_4){
+          backgroundPage_new = UI_BACKGROUND_PAGE_5;
+          // Check if page will use the same background as the previous one
+          if(backgroundPage_new != backgroundPage_old){
+             drawSdJpeg(UI_BACKGROUND_PAGE_FILENAME_5, 0, 0);     // This draws a jpeg pulled off the SD Card
+             backgroundPage_old = backgroundPage_new;
+             tft.readRect(TEMPERATURE_BOX_START_X, TEMPERATURE_BOX_START_Y, TEMPERATURE_BOX_W, TEMPERATURE_BOX_H, buff_textBoxBg);
+             vTaskDelay(100);
+          }
+        }
+        else if(RH_value > RH_THRESHOLD_VALUE_3){
+           backgroundPage_new = UI_BACKGROUND_PAGE_4;
+           // Check if page will use the same background as the previous one
+           if(backgroundPage_new != backgroundPage_old){
+              drawSdJpeg(UI_BACKGROUND_PAGE_FILENAME_4, 0, 0);     // This draws a jpeg pulled off the SD Card
+              backgroundPage_old = backgroundPage_new;
+              tft.readRect(TEMPERATURE_BOX_START_X, TEMPERATURE_BOX_START_Y, TEMPERATURE_BOX_W, TEMPERATURE_BOX_H, buff_textBoxBg);
+              vTaskDelay(100);
+           }
+        }
+        else if(RH_value > RH_THRESHOLD_VALUE_2){
+           backgroundPage_new = UI_BACKGROUND_PAGE_3;
+           if(backgroundPage_new != backgroundPage_old){
+              drawSdJpeg(UI_BACKGROUND_PAGE_FILENAME_3, 0, 0);     // This draws a jpeg pulled off the SD Card
+              backgroundPage_old = backgroundPage_new;
+              tft.readRect(TEMPERATURE_BOX_START_X, TEMPERATURE_BOX_START_Y, TEMPERATURE_BOX_W, TEMPERATURE_BOX_H, buff_textBoxBg);
+              vTaskDelay(100);
+           }
+        }
+        else if(RH_value > RH_THRESHOLD_VALUE_1){
+           backgroundPage_new = UI_BACKGROUND_PAGE_2;
+           // Check if page will use the same background as the previous one
+           if(backgroundPage_new != backgroundPage_old){
+              drawSdJpeg(UI_BACKGROUND_PAGE_FILENAME_2, 0, 0);     // This draws a jpeg pulled off the SD Card
+              backgroundPage_old = backgroundPage_new;
+              tft.readRect(TEMPERATURE_BOX_START_X, TEMPERATURE_BOX_START_Y, TEMPERATURE_BOX_W, TEMPERATURE_BOX_H, buff_textBoxBg);
+              vTaskDelay(100);
+           }  
+        }
+        else{
+           backgroundPage_new = UI_BACKGROUND_PAGE_1;
+           // Check if page will use the same background as the previous one
+           if(backgroundPage_new != backgroundPage_old){
+              drawSdJpeg(UI_BACKGROUND_PAGE_FILENAME_1, 0, 0);     // This draws a jpeg pulled off the SD Card
+              backgroundPage_old = backgroundPage_new;
+              tft.readRect(TEMPERATURE_BOX_START_X, TEMPERATURE_BOX_START_Y, TEMPERATURE_BOX_W, TEMPERATURE_BOX_H, buff_textBoxBg);
+              vTaskDelay(100);
+           }
+        } 
       }
     }
 
@@ -269,15 +279,16 @@ void task_display(void *pvParameters)  // This is a task.
     /*
      * Write tempurature & RH value to LCD display
      */
-    if(! isnan(RH_value)){  // check if 'is not a number'
+    if(!isnan(RH_value) && firstReadFlagCompleted != 0){  // check if 'is not a number'
 
       // Convert to integer for temperature displaying
       RH_value_rounded[0] = (int) RH_value;
+
+      Serial.print(RH_value_rounded[0]);
+      Serial.print(",");
+      Serial.println(RH_value_rounded[1]);
       
       if(RH_value_rounded[0] != RH_value_rounded[1]){
-        Serial.print(RH_value_rounded[0]);
-        Serial.print(",");
-        Serial.println(RH_value_rounded[1]);
         // refresh background at textbox area only
         tft.pushRect(TEMPERATURE_BOX_START_X, TEMPERATURE_BOX_START_Y, TEMPERATURE_BOX_W, TEMPERATURE_BOX_H, buff_textBoxBg);
         
@@ -298,18 +309,18 @@ void task_display(void *pvParameters)  // This is a task.
         tmp_string = String(RH_value_rounded[0]);
         sprite.drawString(tmp_string, 0, 0, GFXFF);
         sprite.setFreeFont(FF21);
-        sprite.drawString("%", 110, 50, GFXFF);
+        sprite.drawString("%", 110, 40, GFXFF);
   
         // Push sprite to TFT screen CGRAM at coordinate x,y (top left corner)
         // Specify what colour is to be treated as transparent.
         sprite.pushSprite(TEMPERATURE_BOX_START_X, TEMPERATURE_BOX_START_Y, TFT_BLACK);
   
         // Delete it to free memory
-        sprite.deleteSprite();  
+        sprite.deleteSprite();
+
+        // Update rounded RH_value
+        RH_value_rounded[1] = RH_value_rounded[0];
       }
-      
-      // Update rounded RH_value
-      RH_value_rounded[1] = RH_value_rounded[0];
     }
     else{ 
       Serial.println("Failed to read temperature");
