@@ -34,9 +34,10 @@ void task_heater_ctrl(void *pvParameters);
 #define HEATER_CTRL_STATE_HIGH_RH     1
 #define HEATER_CTRL_STATE_LOW_RH      2
 #define HEATER_CTRL_STATE_IDLE        0
-float RH_value=50;
+float RH_value;
 float temperatureValue;
-int8_t sht31_disconnected = 0;
+int8_t sht31_disconnected;
+int8_t ble_message_at_start_flag = 0;
 int8_t heaterCtrlState = HEATER_CTRL_STATE_IDLE;
 
 /*
@@ -58,9 +59,10 @@ class MyCallbacks: public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic *pCharacteristic) {
       timeoutCnt = BLE_CONNECTTIMEOUT;
       timeoutFlag = false;
+      if(ble_message_at_start_flag == 0)   ble_message_at_start_flag = 1;
+      
       std::string value = pCharacteristic->getValue();
-
-      //BLE_message = value;
+      
       BLE_message = value.c_str();
       //Serial.println(BLE_message);
     }
@@ -70,14 +72,18 @@ class MyCallbacks: public BLECharacteristicCallbacks {
 
 void setup() {
   Serial.begin(115200);
-  Serial.println("Starting BLE work!");
-
+  
+  Serial.println("Initialize GPIO...");
   pinMode(CONTROL_IO_HEATER, OUTPUT);
   pinMode(CONTROL_IO_FAN, OUTPUT);
   pinMode(LED_IO_HEATER, OUTPUT);
   pinMode(LED_IO_FAN, OUTPUT);
   pinMode(LED_IO_BLE_CONNECTED, OUTPUT);
+  digitalWrite(LED_IO_HEATER, HIGH);
+  digitalWrite(LED_IO_FAN, HIGH);
+  digitalWrite(LED_IO_BLE_CONNECTED, HIGH); 
   
+  Serial.println("Starting BLE...");
   BLEDevice::init("MyESP32");
   BLEServer *pServer = BLEDevice::createServer();
   BLEService *pService = pServer->createService(SERVICE_UUID);
@@ -150,17 +156,24 @@ void task_displayStatus(void *pvParameters)  // This is a task.
   {
     // Display BLE connection status
     if(!timeoutFlag){
-       digitalWrite(LED_IO_BLE_CONNECTED, HIGH);
-    }
-    else{
        digitalWrite(LED_IO_BLE_CONNECTED, LOW);
     }
-    Serial.print("temp=");
-    Serial.print(temperatureValue);
-    Serial.print("\tRH=");
-    Serial.print(RH_value);
-    Serial.print("\terror=");
-    Serial.println(sht31_disconnected);
+    else{
+       digitalWrite(LED_IO_BLE_CONNECTED, HIGH);
+    }
+    if(ble_message_at_start_flag != 0){
+       Serial.print("temp=");
+       Serial.print(temperatureValue);
+       Serial.print("\tRH=");
+       Serial.print(RH_value);
+       Serial.print("\terror=");
+       Serial.print(sht31_disconnected);
+       Serial.print("\tstate");
+       Serial.println(heaterCtrlState);
+    }
+    else{
+       Serial.println("Wait for the first BLE message...");
+    }
     
     // task sleep
     vTaskDelay(1500);
@@ -220,7 +233,7 @@ void task_decodeBluetoothMessage(void *pvParameters)
     }
     
     // task sleep
-    vTaskDelay(250);
+    vTaskDelay(1000);
   }
 }
 
@@ -259,48 +272,51 @@ void task_heaterControl(void *pvParameters)  // This is a task.
        if(heaterCtrlState != HEATER_CTRL_STATE_IDLE){
           Serial.println("Turn off heater, go to IDLE");
           digitalWrite(CONTROL_IO_HEATER, LOW);
-          digitalWrite(LED_IO_HEATER, LOW);
+          digitalWrite(LED_IO_HEATER, HIGH);
           vTaskDelay(60000);
           digitalWrite(CONTROL_IO_FAN, LOW);  
-          digitalWrite(LED_IO_FAN, LOW);
+          digitalWrite(LED_IO_FAN, HIGH);
           heaterCtrlState = HEATER_CTRL_STATE_IDLE;
+          ble_message_at_start_flag = 0;
        }
     }
     else{
-      /*
-       * When there is connection and no error from sensor node
-       * -> Activate heater control
-       */
-      if(RH_value > RH_THRESHOLD_HIGH){
-        if(heaterCtrlState != HEATER_CTRL_STATE_HIGH_RH){
-           /*
-            * RH value rise from LOW_RH threshold to HIGH_RH threshold
-            */
-           Serial.println("Turn on heater");
-           // turn on fan and heater
-           digitalWrite(CONTROL_IO_HEATER, HIGH);
-           digitalWrite(LED_IO_HEATER, HIGH);
-           vTaskDelay(10000);
-           digitalWrite(CONTROL_IO_FAN, HIGH);   
-           digitalWrite(LED_IO_FAN, HIGH);
-           heaterCtrlState = HEATER_CTRL_STATE_HIGH_RH;
-        }
-      }
-      else if(RH_value < RH_THRESHOLD_LOW){
-        if(heaterCtrlState != HEATER_CTRL_STATE_LOW_RH){
-           /*
-            * RH value drop from HIGH_RH threshold to LOW_RH threshold
-            */
-           // turn off fan and heater
-           Serial.println("Turn off heater, go to IDLE");
-           digitalWrite(CONTROL_IO_HEATER, LOW);
-           digitalWrite(LED_IO_HEATER, LOW);   
-           vTaskDelay(60000);   
-           digitalWrite(CONTROL_IO_FAN, LOW);  
-           digitalWrite(LED_IO_FAN, LOW);
-           heaterCtrlState = HEATER_CTRL_STATE_LOW_RH;
-        }
-      }
+       /*
+        * When there is connection and no error from sensor node
+        * -> Activate heater control
+        */
+       if(ble_message_at_start_flag != 0){
+          if(RH_value > RH_THRESHOLD_HIGH){
+             if(heaterCtrlState != HEATER_CTRL_STATE_HIGH_RH){
+                /*
+                 * RH value rise from LOW_RH threshold to HIGH_RH threshold
+                 */
+                Serial.println("Turn on heater");
+                // turn on fan and heater
+                digitalWrite(CONTROL_IO_HEATER, HIGH);
+                digitalWrite(LED_IO_HEATER, LOW);
+                vTaskDelay(10000);
+                digitalWrite(CONTROL_IO_FAN, HIGH);   
+                digitalWrite(LED_IO_FAN, LOW);
+                heaterCtrlState = HEATER_CTRL_STATE_HIGH_RH;
+             }
+          }
+          else if(RH_value < RH_THRESHOLD_LOW){
+             if(heaterCtrlState != HEATER_CTRL_STATE_LOW_RH){
+                /*
+                 * RH value drop from HIGH_RH threshold to LOW_RH threshold
+                 */
+                // turn off fan and heater
+                Serial.println("Turn off heater, go to IDLE");
+                digitalWrite(CONTROL_IO_HEATER, LOW);
+                digitalWrite(LED_IO_HEATER, HIGH);   
+                vTaskDelay(60000);   
+                digitalWrite(CONTROL_IO_FAN, LOW);  
+                digitalWrite(LED_IO_FAN, HIGH);
+                heaterCtrlState = HEATER_CTRL_STATE_LOW_RH;
+             }
+          } 
+       }
     }  
     
     // task sleep
