@@ -284,9 +284,9 @@ void task_display(void *pvParameters)  // This is a task.
       // Convert to integer for temperature displaying
       RH_value_rounded[0] = (int) RH_value;
 
-      Serial.print(RH_value_rounded[0]);
-      Serial.print(",");
-      Serial.println(RH_value_rounded[1]);
+      //Serial.print(RH_value_rounded[0]);
+      //Serial.print(",");
+      //Serial.println(RH_value_rounded[1]);
       
       if(RH_value_rounded[0] != RH_value_rounded[1]){
         // refresh background at textbox area only
@@ -334,7 +334,8 @@ void task_display(void *pvParameters)  // This is a task.
 void task_bluetooth(void *pvParameters)  // This is a task.
 {
   (void) pvParameters;
-
+  String newValue;
+  
   for (;;) // A Task shall never return or exit.
   {   
       // If the flag "doConnect" is true then we have scanned for and found the desired
@@ -354,12 +355,20 @@ void task_bluetooth(void *pvParameters)  // This is a task.
       // with the current time since boot.
       if(connected){
         BLE_connectionState = true;
-        String newValue = String(temperatureValue, 2) + "," + String(RH_value, 2) + "," + String(sht31_disconnected);
+
+        // Send the data to base-station if sensor is read successfully (firstReadFlagCompleted = 1)
+        if(firstReadFlagCompleted != 0){
+           newValue = String(temperatureValue, 2) + "," + String(RH_value, 2) + "," + String(sht31_disconnected);
+        }
+        else{
+           newValue = "N,N," + String(sht31_disconnected);
+        }
+        
         //String newValue = String(RH_value, 2);
         Serial.println("Setting new characteristic value to \"" + newValue + "\"");
         
         // Set the characteristic's value to be the array of bytes that is actually a string.
-        pRemoteCharacteristic->writeValue(newValue.c_str(), newValue.length());
+        pRemoteCharacteristic->writeValue(newValue.c_str(), newValue.length());  
       }
       else if(doScan){
         BLE_connectionState = false;

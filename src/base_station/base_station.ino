@@ -59,12 +59,14 @@ class MyCallbacks: public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic *pCharacteristic) {
       timeoutCnt = BLE_CONNECTTIMEOUT;
       timeoutFlag = false;
-      if(ble_message_at_start_flag == 0)   ble_message_at_start_flag = 1;
       
       std::string value = pCharacteristic->getValue();
-      
       BLE_message = value.c_str();
-      //Serial.println(BLE_message);
+      Serial.println(BLE_message);
+
+      if(ble_message_at_start_flag == 0){
+         if(BLE_message[0] != 'N')   ble_message_at_start_flag = 1;
+      }
     }
 };
 
