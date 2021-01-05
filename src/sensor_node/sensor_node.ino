@@ -93,7 +93,7 @@ void setup() {
    * SHT31 Initialize
    */
   pinMode(GPIO_SENSOR_ERROR_LED, OUTPUT);
-  digitalWrite(GPIO_SENSOR_ERROR_LED, LOW);
+  digitalWrite(GPIO_SENSOR_ERROR_LED, HIGH);
   
   /*
    * TFT LCD Initialize
@@ -163,12 +163,12 @@ void task_readSensor(void *pvParameters)  // This is a task.
     if (! sht31.begin(0x44)) {   // Set to 0x45 for alternate i2c addr
       sht31_disconnected = 1; // Set disconnect flag of sht31 sensor
       // Turn on sensor problem LED
-      digitalWrite(GPIO_SENSOR_ERROR_LED, HIGH);
+      digitalWrite(GPIO_SENSOR_ERROR_LED, LOW);
       Serial.println("Couldn't find SHT31");
     }
     else{
       sht31_disconnected = 0;
-      digitalWrite(GPIO_SENSOR_ERROR_LED, LOW);
+      digitalWrite(GPIO_SENSOR_ERROR_LED, HIGH);
       temperatureValue = sht31.readTemperature();
       RH_value = sht31.readHumidity();
       if(firstReadFlagCompleted == 0) firstReadFlagCompleted = 1;
