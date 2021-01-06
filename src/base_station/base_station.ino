@@ -37,7 +37,6 @@ void task_heater_ctrl(void *pvParameters);
 float RH_value;
 float temperatureValue;
 int8_t sht31_disconnected;
-int8_t ble_message_at_start_flag = 0;
 int8_t heaterCtrlState = HEATER_CTRL_STATE_IDLE;
 
 /*
@@ -53,6 +52,8 @@ int8_t heaterCtrlState = HEATER_CTRL_STATE_IDLE;
 String   BLE_message = "";
 uint32_t timeoutCnt = BLE_CONNECTTIMEOUT;
 bool     timeoutFlag = true;
+int8_t ble_message_at_start_flag = 0;
+
 
 // Callback function class for BLE
 class MyCallbacks: public BLECharacteristicCallbacks {
@@ -131,13 +132,15 @@ void setup() {
                     NULL,             /* Parameter passed as input of the task */
                     1,                /* Priority of the task. */
                     NULL);            /* Task handle. */
-  xTaskCreate(
-                    task_decodeBluetoothMessage,          /* Task function. */
-                    "BLE timeout checking",        /* String with name of task. */
-                    1024,             /* Stack size in bytes. */
-                    NULL,             /* Parameter passed as input of the task */
-                    1,                /* Priority of the task. */
-                    NULL);  
+  
+  //xTaskCreate(
+  //                  task_decodeBluetoothMessage,          /* Task function. */
+  //                  "BLE timeout checking",        /* String with name of task. */
+  //                  1024,             /* Stack size in bytes. */
+  //                  NULL,             /* Parameter passed as input of the task */
+  //                  1,                /* Priority of the task. */
+  //                  NULL);
+  
 }
 
 void loop() {
@@ -205,6 +208,7 @@ void task_decodeBluetoothMessage(void *pvParameters)
      * BLE message decoding. Message is CSV format -> temperature, RH_value, sht31_disconnected
      *                                                    field1,   field2,  field3
      */
+    
     tmp_msg = BLE_message;   // load current BLE message to temporary variable
     msg_len = tmp_msg.length();
     if(msg_len > 0){
@@ -235,7 +239,7 @@ void task_decodeBluetoothMessage(void *pvParameters)
     }
     
     // task sleep
-    vTaskDelay(1000);
+    vTaskDelay(500);
   }
 }
 
@@ -263,9 +267,53 @@ void task_connectTimeout(void *pvParameters)  // This is a task.
 void task_heaterControl(void *pvParameters)  // This is a task.
 {
   (void) pvParameters;
-
+  
+  /* for message CSV format decoding */
+  String tmp_msg;
+  char field1[8] = "";
+  char field2[8] = "";
+  char field3[8] = "";
+  int8_t msg_len;
+  int8_t pos;
+  int8_t previous_comma_pos;
+  int8_t field_num;
+  int8_t i;
+  
   for (;;) // A Task shall never return or exit.
   { 
+    /*
+     * BLE message decoding. Message is CSV format -> temperature, RH_value, sht31_disconnected
+     *                                                    field1,   field2,  field3
+     */
+    tmp_msg = BLE_message;   // load current BLE message to temporary variable
+    msg_len = tmp_msg.length();
+    if(msg_len > 0){
+      pos=0;
+      field_num = 1;
+      previous_comma_pos = -1;
+      while(pos < msg_len){
+        if(tmp_msg[pos] == ','){
+          for(i=0; i<pos-previous_comma_pos-1; i++){
+            if(field_num == 1)       field1[i] = tmp_msg[previous_comma_pos + 1 + i];
+            else if(field_num == 2)  field2[i] = tmp_msg[previous_comma_pos + 1 + i];
+          }
+          i=0;
+          previous_comma_pos = pos;
+          field_num++;
+        }
+        else if(field_num == 3){
+          field3[i] = tmp_msg[pos];
+          i++;
+        }
+        pos++;
+      }
+
+      // Update temperature, RH value, error status with decoded message
+      temperatureValue = atof(field1);
+      RH_value = atof(field2);
+      sht31_disconnected = atoi(field3);
+    }
+    
     if(timeoutFlag || (sht31_disconnected != 0)){
       /*
        * When there is no connection OR get error from sensor node
@@ -273,6 +321,10 @@ void task_heaterControl(void *pvParameters)  // This is a task.
        */
        if(heaterCtrlState != HEATER_CTRL_STATE_IDLE){
           Serial.println("Turn off heater, go to IDLE");
+          Serial.print("timeoutFlag");
+          Serial.print(timeoutFlag);
+          Serial.print("sht31_disconnected");
+          Serial.println(sht31_disconnected);
           digitalWrite(CONTROL_IO_HEATER, LOW);
           digitalWrite(LED_IO_HEATER, HIGH);
           vTaskDelay(60000);
@@ -309,7 +361,7 @@ void task_heaterControl(void *pvParameters)  // This is a task.
                  * RH value drop from HIGH_RH threshold to LOW_RH threshold
                  */
                 // turn off fan and heater
-                Serial.println("Turn off heater, go to IDLE");
+                Serial.println("Turn off heater");
                 digitalWrite(CONTROL_IO_HEATER, LOW);
                 digitalWrite(LED_IO_HEATER, HIGH);   
                 vTaskDelay(60000);   
@@ -322,6 +374,6 @@ void task_heaterControl(void *pvParameters)  // This is a task.
     }  
     
     // task sleep
-    vTaskDelay(500);
+    vTaskDelay(1000);
   }
 }
