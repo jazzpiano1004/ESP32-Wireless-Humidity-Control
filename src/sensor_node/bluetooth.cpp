@@ -5,8 +5,13 @@
 // The remote service we wish to connect to.
 //BLEUUID serviceUUID("4fafc201-1fb5-459e-8fcc-c5c9c331914b");
 BLEUUID serviceUUID("2c0c9b4a-2a57-11eb-adc1-0242ac120002");
+
+#define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"   // pair 1
+//#define CHARACTERISTIC_UUID "b816f6fe-4ff4-11eb-ae93-0242ac130002"   // pair 2
+//#define CHARACTERISTIC_UUID "d4582f1c-4ff5-11eb-ae93-0242ac130002"   // pair 3
 // The characteristic of the remote service we are interested in.
-BLEUUID    charUUID("beb5483e-36e1-4688-b7f5-ea07361b26a8");
+BLEUUID    charUUID(CHARACTERISTIC_UUID);
+
 
 boolean doConnect = false;
 boolean connected = false;

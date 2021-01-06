@@ -46,7 +46,10 @@ int8_t heaterCtrlState = HEATER_CTRL_STATE_IDLE;
 // https://www.uuidgenerator.net/
 //#define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
 #define SERVICE_UUID        "2c0c9b4a-2a57-11eb-adc1-0242ac120002"
-#define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
+#define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"   // pair 1
+//#define CHARACTERISTIC_UUID "b816f6fe-4ff4-11eb-ae93-0242ac130002"   // pair 2
+//#define CHARACTERISTIC_UUID "d4582f1c-4ff5-11eb-ae93-0242ac130002"   // pair 3
+
 #define BLE_CONNECTTIMEOUT      10
 #define LED_IO_BLE_CONNECTED    25
 String   BLE_message = "";
