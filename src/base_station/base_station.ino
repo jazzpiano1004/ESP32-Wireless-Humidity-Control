@@ -85,9 +85,14 @@ void setup() {
   pinMode(LED_IO_HEATER, OUTPUT);
   pinMode(LED_IO_FAN, OUTPUT);
   pinMode(LED_IO_BLE_CONNECTED, OUTPUT);
-  digitalWrite(LED_IO_HEATER, HIGH);
-  digitalWrite(LED_IO_FAN, HIGH);
-  digitalWrite(LED_IO_BLE_CONNECTED, HIGH); 
+  //digitalWrite(LED_IO_HEATER, HIGH);
+  //digitalWrite(LED_IO_FAN, HIGH);
+  //digitalWrite(LED_IO_BLE_CONNECTED, HIGH);
+  
+  // for old version
+  digitalWrite(LED_IO_HEATER, LOW);             
+  digitalWrite(LED_IO_FAN, LOW);
+  digitalWrite(LED_IO_BLE_CONNECTED, LOW); 
   
   Serial.println("Starting BLE...");
   BLEDevice::init("MyESP32");
@@ -164,10 +169,12 @@ void task_displayStatus(void *pvParameters)  // This is a task.
   {
     // Display BLE connection status
     if(!timeoutFlag){
-       digitalWrite(LED_IO_BLE_CONNECTED, LOW);
+       //digitalWrite(LED_IO_BLE_CONNECTED, LOW);   // new version
+       digitalWrite(LED_IO_BLE_CONNECTED, HIGH);    // old version
     }
     else{
-       digitalWrite(LED_IO_BLE_CONNECTED, HIGH);
+       //digitalWrite(LED_IO_BLE_CONNECTED, HIGH);  // new version
+       digitalWrite(LED_IO_BLE_CONNECTED, LOW);     // old version
     }
     if(ble_message_at_start_flag != 0){
        Serial.print("temp=");
@@ -329,10 +336,12 @@ void task_heaterControl(void *pvParameters)  // This is a task.
           Serial.print("sht31_disconnected");
           Serial.println(sht31_disconnected);
           digitalWrite(CONTROL_IO_HEATER, LOW);
-          digitalWrite(LED_IO_HEATER, HIGH);
+          //digitalWrite(LED_IO_HEATER, HIGH);   // for a new version
+          digitalWrite(LED_IO_HEATER, LOW);      // old version
           vTaskDelay(60000);
           digitalWrite(CONTROL_IO_FAN, LOW);  
-          digitalWrite(LED_IO_FAN, HIGH);
+          //digitalWrite(LED_IO_FAN, HIGH);      // for a new version
+          digitalWrite(LED_IO_FAN, LOW);      // old version
           heaterCtrlState = HEATER_CTRL_STATE_IDLE;
           ble_message_at_start_flag = 0;
        }
@@ -351,10 +360,12 @@ void task_heaterControl(void *pvParameters)  // This is a task.
                 Serial.println("Turn on heater");
                 // turn on fan and heater
                 digitalWrite(CONTROL_IO_HEATER, HIGH);
-                digitalWrite(LED_IO_HEATER, LOW);
+                //digitalWrite(LED_IO_HEATER, LOW); // for a new version
+                digitalWrite(LED_IO_HEATER, HIGH);  // old version
                 vTaskDelay(10000);
                 digitalWrite(CONTROL_IO_FAN, HIGH);   
-                digitalWrite(LED_IO_FAN, LOW);
+                //digitalWrite(LED_IO_FAN, LOW);    // for a new version
+                digitalWrite(LED_IO_FAN, HIGH);     // old version
                 heaterCtrlState = HEATER_CTRL_STATE_HIGH_RH;
              }
           }
@@ -366,10 +377,12 @@ void task_heaterControl(void *pvParameters)  // This is a task.
                 // turn off fan and heater
                 Serial.println("Turn off heater");
                 digitalWrite(CONTROL_IO_HEATER, LOW);
-                digitalWrite(LED_IO_HEATER, HIGH);   
+                //digitalWrite(LED_IO_HEATER, HIGH);   // for a new version
+                digitalWrite(LED_IO_HEATER, LOW);      // old version
                 vTaskDelay(60000);   
                 digitalWrite(CONTROL_IO_FAN, LOW);  
-                digitalWrite(LED_IO_FAN, HIGH);
+                //digitalWrite(LED_IO_FAN, HIGH);      // for a new version
+                digitalWrite(LED_IO_FAN, LOW);        // old version
                 heaterCtrlState = HEATER_CTRL_STATE_LOW_RH;
              }
           } 
