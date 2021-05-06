@@ -88,7 +88,8 @@ void setup() {
   digitalWrite(LED_IO_HEATER, HIGH);
   digitalWrite(LED_IO_FAN, HIGH);
   digitalWrite(LED_IO_BLE_CONNECTED, HIGH); 
-  
+
+  /*
   Serial.println("Starting BLE...");
   BLEDevice::init("MyESP32");
   BLEServer *pServer = BLEDevice::createServer();
@@ -110,7 +111,8 @@ void setup() {
   pAdvertising->setMinPreferred(0x12);
   BLEDevice::startAdvertising();
   Serial.println("BLE Characteristic defined! Now you can read it in your phone!");
-
+  */
+  
   /*
    * Create RTOS task
    */
@@ -129,9 +131,9 @@ void setup() {
                     1,                /* Priority of the task. */
                     NULL);            /* Task handle. */
   xTaskCreate(
-                    task_connectTimeout,          /* Task function. */
-                    "BLE timeout checking",        /* String with name of task. */
-                    1024,             /* Stack size in bytes. */
+                    task_ble,         /* Task function. */
+                    "BLE connection", /* String with name of task. */
+                    20000,             /* Stack size in bytes. */
                     NULL,             /* Parameter passed as input of the task */
                     1,                /* Priority of the task. */
                     NULL);            /* Task handle. */
@@ -159,7 +161,7 @@ void loop() {
 void task_displayStatus(void *pvParameters)  // This is a task.
 {
   (void) pvParameters;
-
+  
   for (;;) // A Task shall never return or exit.
   {
     // Display BLE connection status
@@ -190,68 +192,32 @@ void task_displayStatus(void *pvParameters)  // This is a task.
 
 
 
-void task_decodeBluetoothMessage(void *pvParameters)
+void task_ble(void *pvParameters)  // This is a task.
 {
   (void) pvParameters;
-
-  /* for message CSV format decoding */
-  String tmp_msg;
-  char field1[8] = "";
-  char field2[8] = "";
-  char field3[8] = "";
-  int8_t msg_len;
-  int8_t pos;
-  int8_t previous_comma_pos;
-  int8_t field_num;
-  int8_t i;
   
-  for (;;)
-  { 
-    /*
-     * BLE message decoding. Message is CSV format -> temperature, RH_value, sht31_disconnected
-     *                                                    field1,   field2,  field3
-     */
-    
-    tmp_msg = BLE_message;   // load current BLE message to temporary variable
-    msg_len = tmp_msg.length();
-    if(msg_len > 0){
-      pos=0;
-      field_num = 1;
-      previous_comma_pos = -1;
-      while(pos < msg_len){
-        if(tmp_msg[pos] == ','){
-          for(i=0; i<pos-previous_comma_pos-1; i++){
-            if(field_num == 1)       field1[i] = tmp_msg[previous_comma_pos + 1 + i];
-            else if(field_num == 2)  field2[i] = tmp_msg[previous_comma_pos + 1 + i];
-          }
-          i=0;
-          previous_comma_pos = pos;
-          field_num++;
-        }
-        else if(field_num == 3){
-          field3[i] = tmp_msg[pos];
-          i++;
-        }
-        pos++;
-      }
+  Serial.println("Starting BLE...");
+  BLEDevice::init("MyESP32");
+  BLEServer *pServer = BLEDevice::createServer();
+  BLEService *pService = pServer->createService(SERVICE_UUID);
+  BLECharacteristic *pCharacteristic = pService->createCharacteristic(
+                                         CHARACTERISTIC_UUID,
+                                         BLECharacteristic::PROPERTY_READ |
+                                         BLECharacteristic::PROPERTY_WRITE
+                                       );
 
-      // Update temperature, RH value, error status with decoded message
-      temperatureValue = atof(field1);
-      RH_value = atof(field2);
-      sht31_disconnected = atoi(field3);
-    }
-    
-    // task sleep
-    vTaskDelay(500);
-  }
-}
-
-
-
-void task_connectTimeout(void *pvParameters)  // This is a task.
-{
-  (void) pvParameters;
-
+  pCharacteristic->setCallbacks(new MyCallbacks());
+  pCharacteristic->setValue("Hello World says Neil");
+  pService->start();
+  // BLEAdvertising *pAdvertising = pServer->getAdvertising();  // this still is working for backward compatibility
+  BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
+  pAdvertising->addServiceUUID(SERVICE_UUID);
+  pAdvertising->setScanResponse(true);
+  pAdvertising->setMinPreferred(0x06);  // functions that help with iPhone connections issue
+  pAdvertising->setMinPreferred(0x12);
+  BLEDevice::startAdvertising();
+  Serial.println("BLE Characteristic defined! Now you can read it in your phone!");
+  
   for (;;) // A Task shall never return or exit.
   {
     if(timeoutCnt > 0){
@@ -259,6 +225,36 @@ void task_connectTimeout(void *pvParameters)  // This is a task.
       if(timeoutCnt == 0){
          timeoutFlag = true;
       }
+    }
+    else{
+      // deinit BLE
+      BLEDevice::deinit(false);
+
+      // after this, pServer should be deleted to prevent memory leak.
+      delete pServer;
+      
+      // reinit BLE
+      Serial.println("Starting BLE...");
+      BLEDevice::init("MyESP32");
+      BLEServer *pServer = BLEDevice::createServer();
+      BLEService *pService = pServer->createService(SERVICE_UUID);
+      BLECharacteristic *pCharacteristic = pService->createCharacteristic(
+                                         CHARACTERISTIC_UUID,
+                                         BLECharacteristic::PROPERTY_READ |
+                                         BLECharacteristic::PROPERTY_WRITE
+                                       );
+
+      pCharacteristic->setCallbacks(new MyCallbacks());
+      pCharacteristic->setValue("Hello World says Neil");
+      pService->start();
+      // BLEAdvertising *pAdvertising = pServer->getAdvertising();  // this still is working for backward compatibility
+      BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
+      pAdvertising->addServiceUUID(SERVICE_UUID);
+      pAdvertising->setScanResponse(true);
+      pAdvertising->setMinPreferred(0x06);  // functions that help with iPhone connections issue
+      pAdvertising->setMinPreferred(0x12);
+      BLEDevice::startAdvertising();
+      Serial.println("BLE Characteristic defined! Now you can read it in your phone!");
     }
     // task sleep
     vTaskDelay(1000);
