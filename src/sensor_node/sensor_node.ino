@@ -39,7 +39,7 @@ void task_display( void *pvParameters );
 Adafruit_SHT31 sht31 = Adafruit_SHT31();
 float temperatureValue;
 float RH_value;
-int8_t sht31_disconnected = 0;
+int8_t sht31_disconnected = -1;
 uint8_t firstReadFlagCompleted = 0;
 
 /*
@@ -173,7 +173,6 @@ void task_readSensor(void *pvParameters)  // This is a task.
       digitalWrite(GPIO_SENSOR_ERROR_LED, HIGH);
       temperatureValue = sht31.readTemperature();
       RH_value = sht31.readHumidity();
-      if(firstReadFlagCompleted == 0) firstReadFlagCompleted = 1;
     }
 
     // task sleep
@@ -204,7 +203,7 @@ void task_display(void *pvParameters)  // This is a task.
       Serial.println("Card Mount Failed");
     }
     else{
-      if(firstReadFlagCompleted != 0){
+      if(sht31_disconnected == 0){
         if(RH_value > RH_THRESHOLD_VALUE_4){
           backgroundPage_new = UI_BACKGROUND_PAGE_5;
           // Check if page will use the same background as the previous one
@@ -281,16 +280,52 @@ void task_display(void *pvParameters)  // This is a task.
     /*
      * Write tempurature & RH value to LCD display
      */
-    if(!isnan(RH_value) && firstReadFlagCompleted != 0){  // check if 'is not a number'
-
-      // Convert to integer for temperature displaying
-      RH_value_rounded[0] = (int) RH_value;
-
-      //Serial.print(RH_value_rounded[0]);
-      //Serial.print(",");
-      //Serial.println(RH_value_rounded[1]);
+    if(sht31_disconnected == 0){  
       
-      if(RH_value_rounded[0] != RH_value_rounded[1]){
+      if(!isnan(RH_value)){    // check if 'is not a number'
+        
+        // Convert to integer for temperature displaying
+        RH_value_rounded[0] = (int) RH_value;
+
+        //Serial.print(RH_value_rounded[0]);
+        //Serial.print(",");
+        //Serial.println(RH_value_rounded[1]);
+      
+        if(RH_value_rounded[0] != RH_value_rounded[1]){
+          // refresh background at textbox area only
+          tft.pushRect(TEMPERATURE_BOX_START_X, TEMPERATURE_BOX_START_Y, TEMPERATURE_BOX_W, TEMPERATURE_BOX_H, buff_textBoxBg);
+          
+          //create sprite with box size of 140 x 80 for text area
+          //8-bit color-level
+          sprite.setColorDepth(8);
+          sprite.createSprite(TEMPERATURE_BOX_W, TEMPERATURE_BOX_H);
+    
+          // Fill Sprite with a "transparent" colour
+          // TFT_TRANSPARENT is already defined for convenience
+          // We could also fill with any colour as "transparent" and later specify that
+          // same colour when we push the Sprite onto the screen.
+          sprite.fillSprite(TFT_BLACK);
+    
+          sprite.setTextColor(textColorCode, TFT_BLACK);  // White text, no background colour 
+          sprite.setFreeFont(FF24);
+          sprite.setTextSize(2);
+          tmp_string = String(RH_value_rounded[0]);
+          sprite.drawString(tmp_string, 0, 0, GFXFF);
+          sprite.setFreeFont(FF21);
+          sprite.drawString("%", 110, 40, GFXFF);
+    
+          // Push sprite to TFT screen CGRAM at coordinate x,y (top left corner)
+          // Specify what colour is to be treated as transparent.
+          sprite.pushSprite(TEMPERATURE_BOX_START_X, TEMPERATURE_BOX_START_Y, TFT_BLACK);
+    
+          // Delete it to free memory
+          sprite.deleteSprite();
+  
+          // Update rounded RH_value
+          RH_value_rounded[1] = RH_value_rounded[0];
+        }
+      }
+      else{
         // refresh background at textbox area only
         tft.pushRect(TEMPERATURE_BOX_START_X, TEMPERATURE_BOX_START_Y, TEMPERATURE_BOX_W, TEMPERATURE_BOX_H, buff_textBoxBg);
         
@@ -308,7 +343,7 @@ void task_display(void *pvParameters)  // This is a task.
         sprite.setTextColor(textColorCode, TFT_BLACK);  // White text, no background colour 
         sprite.setFreeFont(FF24);
         sprite.setTextSize(2);
-        tmp_string = String(RH_value_rounded[0]);
+        tmp_string = String(RH_value_rounded[1]);
         sprite.drawString(tmp_string, 0, 0, GFXFF);
         sprite.setFreeFont(FF21);
         sprite.drawString("%", 110, 40, GFXFF);
@@ -319,9 +354,6 @@ void task_display(void *pvParameters)  // This is a task.
   
         // Delete it to free memory
         sprite.deleteSprite();
-
-        // Update rounded RH_value
-        RH_value_rounded[1] = RH_value_rounded[0];
       }
     }
     else{ 
@@ -372,8 +404,8 @@ void task_bluetooth(void *pvParameters)  // This is a task.
       if(connected){
         BLE_connectionState = true;
 
-        // Send the data to base-station if sensor is read successfully (firstReadFlagCompleted = 1)
-        if(firstReadFlagCompleted != 0){
+        // Send the data to base-station if sensor is read successfully (sht31_disconnected = 0)
+        if(sht31_disconnected == 0){
            newValue = String(temperatureValue, 2) + "," + String(RH_value, 2) + "," + String(sht31_disconnected);
         }
         else{
