@@ -108,6 +108,7 @@ void setup() {
   /*
    * BLE Initialize
    */
+  /*
   BLEDevice::init("");
   // Retrieve a Scanner and set the callback we want to use to be informed when we
   // have detected a new device.  Specify that we want active scanning and start the
@@ -118,11 +119,12 @@ void setup() {
   pBLEScan->setWindow(449);
   pBLEScan->setActiveScan(true);
   pBLEScan->start(5, false);
+  */
   
   xTaskCreate(
                     task_readSensor,          /* Task function. */
                     "read RH sensor task",        /* String with name of task. */
-                    10000,            /* Stack size in bytes. */
+                    2048,            /* Stack size in bytes. */
                     NULL,             /* Parameter passed as input of the task */
                     1,                /* Priority of the task. */
                     NULL);            /* Task handle. */
@@ -137,7 +139,7 @@ void setup() {
   xTaskCreate(
                     task_bluetooth,          /* Task function. */
                     "BLE communication task",        /* String with name of task. */
-                    10000,            /* Stack size in bytes. */
+                    20000,            /* Stack size in bytes. */
                     NULL,             /* Parameter passed as input of the task */
                     1,                /* Priority of the task. */
                     NULL);            /* Task handle. */
@@ -335,6 +337,20 @@ void task_bluetooth(void *pvParameters)  // This is a task.
 {
   (void) pvParameters;
   String newValue;
+
+  /*
+   * BLE Initialize
+   */
+  BLEDevice::init("");
+  // Retrieve a Scanner and set the callback we want to use to be informed when we
+  // have detected a new device.  Specify that we want active scanning and start the
+  // scan to run for 5 seconds.
+  BLEScan* pBLEScan = BLEDevice::getScan();
+  pBLEScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
+  pBLEScan->setInterval(1349);
+  pBLEScan->setWindow(449);
+  pBLEScan->setActiveScan(true);
+  pBLEScan->start(5, false);
   
   for (;;) // A Task shall never return or exit.
   {   
@@ -371,8 +387,9 @@ void task_bluetooth(void *pvParameters)  // This is a task.
         pRemoteCharacteristic->writeValue(newValue.c_str(), newValue.length());  
       }
       else if(doScan){
+        Serial.println("Do not connected, Start scanning...");
         BLE_connectionState = false;
-        BLEDevice::getScan()->start(0);  // this is just eample to start scan after disconnect, most likely there is better way to do it in arduino
+        BLEDevice::getScan()->start(5);  // this is just example to start scan after disconnect, most likely there is better way to do it in arduino
       }
       
       // task sleep
