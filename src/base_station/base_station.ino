@@ -31,6 +31,8 @@ void task_heater_ctrl(void *pvParameters);
 #define LED_IO_FAN          32
 #define RH_THRESHOLD_HIGH             (float)55.10
 #define RH_THRESHOLD_LOW              (float)54.90
+#define RH_THRESHOLD_HEATER           (float)53
+#define RH_THRESHOLD_FAN              (float)48
 #define HEATER_CTRL_STATE_HIGH_RH     1
 #define HEATER_CTRL_STATE_LOW_RH      2
 #define HEATER_CTRL_STATE_IDLE        0
@@ -55,7 +57,7 @@ int8_t heaterCtrlState = HEATER_CTRL_STATE_IDLE;
 String   BLE_message = "";
 uint32_t timeoutCnt = BLE_CONNECTTIMEOUT;
 bool     timeoutFlag = true;
-int8_t ble_message_at_start_flag = 0;
+int8_t ble_message_ready_flag = 0;
 
 
 // Callback function class for BLE
@@ -68,9 +70,7 @@ class MyCallbacks: public BLECharacteristicCallbacks {
       BLE_message = value.c_str();
       Serial.println(BLE_message);
 
-      if(ble_message_at_start_flag == 0){
-         if(BLE_message[0] != 'N')   ble_message_at_start_flag = 1;
-      }
+      ble_message_ready_flag = 1;
     }
 };
 
@@ -171,7 +171,7 @@ void task_displayStatus(void *pvParameters)  // This is a task.
     else{
        digitalWrite(LED_IO_BLE_CONNECTED, HIGH);
     }
-    if(ble_message_at_start_flag != 0){
+    if(ble_message_ready_flag != 0){
        Serial.print("temp=");
        Serial.print(temperatureValue);
        Serial.print("\tRH=");
@@ -284,93 +284,103 @@ void task_heaterControl(void *pvParameters)  // This is a task.
      * BLE message decoding. Message is CSV format -> temperature, RH_value, sht31_disconnected
      *                                                    field1,   field2,  field3
      */
-    tmp_msg = BLE_message;   // load current BLE message to temporary variable
-    msg_len = tmp_msg.length();
-    if(msg_len > 0){
-      pos=0;
-      field_num = 1;
-      previous_comma_pos = -1;
-      while(pos < msg_len){
-        if(tmp_msg[pos] == ','){
-          for(i=0; i<pos-previous_comma_pos-1; i++){
-            if(field_num == 1)       field1[i] = tmp_msg[previous_comma_pos + 1 + i];
-            else if(field_num == 2)  field2[i] = tmp_msg[previous_comma_pos + 1 + i];
+    if(ble_message_ready_flag != 0)
+    {  
+      // Reset flag as consuming the BLE data
+      ble_message_ready_flag = 0;
+      
+      /* 
+       * Decode BLE message from sensor node 
+       */
+      tmp_msg = BLE_message;   // load current BLE message to temporary variable
+      msg_len = tmp_msg.length();
+      if(msg_len > 0){
+        pos=0;
+        field_num = 1;
+        previous_comma_pos = -1;
+        while(pos < msg_len){
+          if(tmp_msg[pos] == ','){
+            for(i=0; i<pos-previous_comma_pos-1; i++){
+              if(field_num == 1)       field1[i] = tmp_msg[previous_comma_pos + 1 + i];
+              else if(field_num == 2)  field2[i] = tmp_msg[previous_comma_pos + 1 + i];
+            }
+            i=0;
+            previous_comma_pos = pos;
+            field_num++;
           }
-          i=0;
-          previous_comma_pos = pos;
-          field_num++;
+          else if(field_num == 3){
+            field3[i] = tmp_msg[pos];
+            i++;
+          }
+          pos++;
         }
-        else if(field_num == 3){
-          field3[i] = tmp_msg[pos];
-          i++;
+      
+        // Update temperature, RH value, error status with decoded message
+        if(field1[0] != 'N' && field2[0] != 'N')
+        {
+           temperatureValue = atof(field1);
+           RH_value = atof(field2); 
         }
-        pos++;
+        else{
+           temperatureValue = 0;
+           RH_value = 0;
+        }
+        sht31_disconnected = atoi(field3);
       }
-
-      // Update temperature, RH value, error status with decoded message
-      temperatureValue = atof(field1);
-      RH_value = atof(field2);
-      sht31_disconnected = atoi(field3);
+      
+      /*
+       * Heater Control, Depends on sensor information 
+       * When there is connection and no error from sensor node
+       *
+       */
+      if(sht31_disconnected == 0){
+        // Heater control
+        if(RH_value > RH_THRESHOLD_HEATER){
+          Serial.println("Turn on heater");
+          // turn on fan and heater
+          digitalWrite(CONTROL_IO_HEATER, HIGH);
+          digitalWrite(LED_IO_HEATER, LOW);
+        }
+        else{
+          Serial.println("Turn off heater");
+          // turn on fan and heater
+          digitalWrite(CONTROL_IO_HEATER, LOW);
+          digitalWrite(LED_IO_HEATER, HIGH);
+        }
+  
+        // Fan control
+        if(RH_value > RH_THRESHOLD_FAN){
+          Serial.println("Turn off fan");
+          // turn on fan and heater
+          digitalWrite(CONTROL_IO_FAN, LOW);
+          digitalWrite(LED_IO_FAN, HIGH);
+        }
+        else{
+          Serial.println("Turn on fan");
+          // turn on fan and heater
+          digitalWrite(CONTROL_IO_FAN, HIGH);
+          digitalWrite(LED_IO_FAN, LOW);
+        }
+      }
     }
-    
+
+    // timeout auto turn-off
     if(timeoutFlag || (sht31_disconnected != 0)){
       /*
        * When there is no connection OR get error from sensor node
        * -> Turn off heater and fan
        */
-       if(heaterCtrlState != HEATER_CTRL_STATE_IDLE){
-          Serial.println("Turn off heater, go to IDLE");
-          Serial.print("timeoutFlag");
-          Serial.print(timeoutFlag);
-          Serial.print("sht31_disconnected");
-          Serial.println(sht31_disconnected);
-          digitalWrite(CONTROL_IO_HEATER, LOW);
-          digitalWrite(LED_IO_HEATER, HIGH);
-          vTaskDelay(60000);
-          digitalWrite(CONTROL_IO_FAN, LOW);  
-          digitalWrite(LED_IO_FAN, HIGH);
-          heaterCtrlState = HEATER_CTRL_STATE_IDLE;
-          ble_message_at_start_flag = 0;
-       }
+       Serial.println("Turn off heater, go to IDLE");
+       Serial.print("timeoutFlag");
+       Serial.print(timeoutFlag);
+       Serial.print("sht31_disconnected");
+       Serial.println(sht31_disconnected);
+        
+       digitalWrite(CONTROL_IO_HEATER, LOW);
+       digitalWrite(LED_IO_HEATER, HIGH);
+       digitalWrite(CONTROL_IO_FAN, LOW);  
+       digitalWrite(LED_IO_FAN, HIGH);
     }
-    else{
-       /*
-        * When there is connection and no error from sensor node
-        * -> Activate heater control
-        */
-       if(ble_message_at_start_flag != 0){
-          if(RH_value > RH_THRESHOLD_HIGH){
-             if(heaterCtrlState != HEATER_CTRL_STATE_HIGH_RH){
-                /*
-                 * RH value rise from LOW_RH threshold to HIGH_RH threshold
-                 */
-                Serial.println("Turn on heater");
-                // turn on fan and heater
-                digitalWrite(CONTROL_IO_HEATER, HIGH);
-                digitalWrite(LED_IO_HEATER, LOW);
-                vTaskDelay(10000);
-                digitalWrite(CONTROL_IO_FAN, HIGH);   
-                digitalWrite(LED_IO_FAN, LOW);
-                heaterCtrlState = HEATER_CTRL_STATE_HIGH_RH;
-             }
-          }
-          else if(RH_value < RH_THRESHOLD_LOW){
-             if(heaterCtrlState != HEATER_CTRL_STATE_LOW_RH){
-                /*
-                 * RH value drop from HIGH_RH threshold to LOW_RH threshold
-                 */
-                // turn off fan and heater
-                Serial.println("Turn off heater");
-                digitalWrite(CONTROL_IO_HEATER, LOW);
-                digitalWrite(LED_IO_HEATER, HIGH);   
-                vTaskDelay(60000);   
-                digitalWrite(CONTROL_IO_FAN, LOW);  
-                digitalWrite(LED_IO_FAN, HIGH);
-                heaterCtrlState = HEATER_CTRL_STATE_LOW_RH;
-             }
-          } 
-       }
-    }  
     
     // task sleep
     vTaskDelay(1000);
